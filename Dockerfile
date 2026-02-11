@@ -63,36 +63,38 @@ COPY --from=frontend-builder /app/frontend/.next/static ./frontend/.next/static
 COPY --from=frontend-builder /app/frontend/public ./frontend/public
 
 # Create startup script
-# Using a trap to kill background processes on exit
 RUN echo '#!/bin/bash\n\
+set -e\n\
 \n\
 # Function to handle shutdown\n\
 cleanup() {\n\
-  echo "Stopping backend..."\n\
-  kill $BACKEND_PID\n\
+  echo "[SHUTDOWN] Stopping services..."\n\
+  kill $BACKEND_PID $FRONTEND_PID 2>/dev/null || true\n\
   exit 0\n\
 }\n\
 \n\
 trap cleanup SIGTERM SIGINT\n\
 \n\
 # Start Backend in background\n\
-echo "Starting backend on port 8000..."\n\
+echo "[STARTUP] Starting backend on port 8000..."\n\
 cd /app/backend && uvicorn main:app --host 0.0.0.0 --port 8000 &\n\
 BACKEND_PID=$!\n\
+echo "[STARTUP] Backend PID: $BACKEND_PID"\n\
 \n\
-# Determine frontend port\n\
+# Determine frontend port (Render sets PORT env var)\n\
 PORT="${PORT:-10000}"\n\
-echo "Starting frontend on port $PORT..."\n\
+echo "[STARTUP] Starting frontend on port $PORT with hostname 0.0.0.0..."\n\
 \n\
-# Start Frontend in foreground\n\
-# We use "exec" so the node process takes over PID 1 (or mostly) but we have a background task\n\
-# Actually, better to run node in background and wait for both so logs interleave\n\
-cd /app/frontend && PORT=$PORT node server.js &\n\
+# Start Frontend in background with explicit hostname\n\
+cd /app/frontend && HOSTNAME=0.0.0.0 PORT=$PORT node server.js &\n\
 FRONTEND_PID=$!\n\
+echo "[STARTUP] Frontend PID: $FRONTEND_PID"\n\
 \n\
-# Wait for processes\n\
+echo "[STARTUP] Both services started. Waiting for processes..."\n\
+\n\
+# Wait for both processes\n\
 wait $FRONTEND_PID $BACKEND_PID\n\
 ' > /app/start.sh && chmod +x /app/start.sh
 
-# Run both
+# Run startup script
 CMD ["/app/start.sh"]
