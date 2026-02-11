@@ -1,15 +1,21 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Disable linting and type checking during build to save memory on Render
   eslint: {
     ignoreDuringBuilds: true,
   },
   typescript: {
     ignoreBuildErrors: true,
   },
-  // Optimize for Docker
   output: 'standalone',
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'http://127.0.0.1:8000/:path*', // Proxy to backend running in same container
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;
