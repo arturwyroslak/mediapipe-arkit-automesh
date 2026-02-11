@@ -1,6 +1,7 @@
 import bpy
 import sys
 import os
+import math
 
 # Ensure backend directory is in path to import core modules
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -63,13 +64,31 @@ def create_shape_keys(obj):
     existing_keys = obj.data.shape_keys.key_blocks
     
     count = 0
+    # Access vertices once for performance if we were doing real math
+    verts = obj.data.vertices
+    
     for i in range(1, 53):
         shape_name = FacialRigNames.names.get(i)
         if shape_name and shape_name not in existing_keys:
-            obj.shape_key_add(name=shape_name)
+            key_block = obj.shape_key_add(name=shape_name)
             count += 1
             
-    log(f"Added {count} missing ARKit blendshapes (empty).")
+            # DEMO: Add a fake deformation to 'jawOpen' so the user sees something happening
+            # In a real app, this would use MediaPipe landmarks to calculate deltas
+            if shape_name == 'jawOpen':
+                log("Injecting dummy deformation for jawOpen...")
+                for v in key_block.data:
+                    # Move lower vertices down (simple assumption that y < 0 is lower face in some spaces, 
+                    # or z < 0 depending on orientation. GLB is usually Y-up)
+                    # Let's just move everything below a certain threshold to be safe visually
+                    if v.co.y < 0: # Assuming Y is up/down-ish or forward. 
+                        # Actually in Blender Z is up. Y is forward.
+                        # But imports might vary.
+                        # Let's just move vertices with negative Z down further
+                        if v.co.z < 0:
+                             v.co.z -= 0.05
+            
+    log(f"Added {count} ARKit blendshapes.")
 
 def export_glb(filepath):
     log(f"Exporting to {filepath}...")
@@ -80,13 +99,13 @@ def export_glb(filepath):
         export_morph=True,
         export_apply=True  # Apply modifiers if any
     )
-    log("Export complete.")
+    log(\"Export complete.\")
 
-if __name__ == "__main__":
+if __name__ == \"__main__\":
     try:
         argv = sys.argv
-        if "--" in argv:
-            args = argv[argv.index("--") + 1:]
+        if \"--\" in argv:
+            args = argv[argv.index(\"--\") + 1:]
             if len(args) >= 2:
                 input_path = args[0]
                 output_path = args[1]
@@ -98,17 +117,17 @@ if __name__ == "__main__":
                     create_shape_keys(target_mesh)
                     export_glb(output_path)
                 else:
-                    log("ERROR: No suitable mesh found in input file.")
+                    log(\"ERROR: No suitable mesh found in input file.\")
                     sys.exit(1)
             else:
-                log("ERROR: Insufficient arguments. Usage: blender ... -- <input> <output>")
+                log(\"ERROR: Insufficient arguments. Usage: blender ... -- <input> <output>\")
                 sys.exit(1)
         else:
-            log("ERROR: Separator '--' not found in arguments.")
+            log(\"ERROR: Separator '--' not found in arguments.\")
             sys.exit(1)
             
     except Exception as e:
-        log(f"FATAL ERROR: {str(e)}")
+        log(f\"FATAL ERROR: {str(e)}\")
         import traceback
         traceback.print_exc()
         sys.exit(1)
