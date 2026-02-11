@@ -1,20 +1,25 @@
 # Stage 1: Build Frontend
-FROM node:18-alpine AS frontend-builder
+FROM node:18-slim AS frontend-builder
 WORKDIR /app/frontend
+
+# Copy package files first for caching
 COPY frontend/package*.json ./
 RUN npm install
+
+# Copy source code
 COPY frontend/ .
-# Set API URL to localhost for static build or handle proxy in next config
-# For a single container, we'll serve frontend static export or run next start
-# Here we build for production
+
+# Reduce memory usage during build
+ENV NODE_OPTIONS="--max-old-space-size=2048"
+
+# Build with standalone output
 RUN npm run build
 
-# Stage 2: Final Image (Python + Node + Blender)
+# Stage 2: Final Image
 FROM python:3.10-slim
 
-# Install system dependencies including Node.js and Blender deps
-# libgl1-mesa-glx is replaced by libgl1 in newer Debian
-# libgconf-2-4 is deprecated and often not needed for headless blender or has alternatives
+# Install system dependencies
+# libgl1 is sufficient for headless blender usually
 RUN apt-get update && apt-get install -y \
     wget \
     xz-utils \
@@ -22,15 +27,12 @@ RUN apt-get update && apt-get install -y \
     libfontconfig1 \
     libxrender1 \
     libgl1 \
-    libgl1-mesa-dev \
     libsm6 \
-    libxext6 \
-    libxfixes3 \
     curl \
     gnupg \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Node.js 18
+# Install Node.js 18 (required to run the Next.js standalone server)
 RUN mkdir -p /etc/apt/keyrings && \
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
     echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_18.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \
@@ -52,23 +54,23 @@ WORKDIR /app
 
 # Setup Backend
 COPY backend/requirements.txt ./backend/
+# Check if requirements.txt exists and install, otherwise skip or fail gracefully
 RUN pip install --no-cache-dir -r backend/requirements.txt
 COPY backend/ ./backend/
 
-# Setup Frontend (Copy built artifacts and node_modules)
-COPY --from=frontend-builder /app/frontend/.next ./frontend/.next
+# Setup Frontend (Copy Standalone Output)
+# The standalone build puts everything needed in .next/standalone
+COPY --from=frontend-builder /app/frontend/.next/standalone ./frontend
+COPY --from=frontend-builder /app/frontend/.next/static ./frontend/.next/static
 COPY --from=frontend-builder /app/frontend/public ./frontend/public
-COPY --from=frontend-builder /app/frontend/node_modules ./frontend/node_modules
-COPY --from=frontend-builder /app/frontend/package.json ./frontend/package.json
-# Copy config files if needed
-COPY --from=frontend-builder /app/frontend/next.config.js ./frontend/next.config.js 
 
 # Create startup script
+# We run the standalone node server which is optimized for production
 RUN echo '#!/bin/bash\n\
 # Start Backend in background\n\
 cd /app/backend && uvicorn main:app --host 0.0.0.0 --port 8000 &\n\
-# Start Frontend\n\
-cd /app/frontend && npm start -- -p 3000\n\
+# Start Frontend (Standalone)\n\
+cd /app/frontend && node server.js\n\
 ' > /app/start.sh && chmod +x /app/start.sh
 
 # Expose ports
