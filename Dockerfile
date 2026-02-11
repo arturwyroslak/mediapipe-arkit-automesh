@@ -63,21 +63,35 @@ COPY --from=frontend-builder /app/frontend/.next/static ./frontend/.next/static
 COPY --from=frontend-builder /app/frontend/public ./frontend/public
 
 # Create startup script
-# RENDER sets the PORT environment variable. Next.js should listen on that.
-# However, we are running two services.
-# Render expects the web service to listen on $PORT (usually 10000).
-# We will make Next.js (frontend) listen on $PORT (or 10000 if not set).
-# The backend will listen on 8000 internally.
+# Using a trap to kill background processes on exit
 RUN echo '#!/bin/bash\n\
-# Start Backend in background on internal port 8000\n\
+\n\
+# Function to handle shutdown\n\
+cleanup() {\n\
+  echo "Stopping backend..."\n\
+  kill $BACKEND_PID\n\
+  exit 0\n\
+}\n\
+\n\
+trap cleanup SIGTERM SIGINT\n\
+\n\
+# Start Backend in background\n\
+echo "Starting backend on port 8000..."\n\
 cd /app/backend && uvicorn main:app --host 0.0.0.0 --port 8000 &\n\
+BACKEND_PID=$!\n\
 \n\
-# Determine the port for frontend (Render provides PORT env var)\n\
+# Determine frontend port\n\
 PORT="${PORT:-10000}"\n\
-echo "Starting frontend on port $PORT"\n\
+echo "Starting frontend on port $PORT..."\n\
 \n\
-# Start Frontend (Standalone)\n\
-cd /app/frontend && PORT=$PORT node server.js\n\
+# Start Frontend in foreground\n\
+# We use "exec" so the node process takes over PID 1 (or mostly) but we have a background task\n\
+# Actually, better to run node in background and wait for both so logs interleave\n\
+cd /app/frontend && PORT=$PORT node server.js &\n\
+FRONTEND_PID=$!\n\
+\n\
+# Wait for processes\n\
+wait $FRONTEND_PID $BACKEND_PID\n\
 ' > /app/start.sh && chmod +x /app/start.sh
 
 # Run both
