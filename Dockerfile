@@ -63,15 +63,22 @@ COPY --from=frontend-builder /app/frontend/.next/static ./frontend/.next/static
 COPY --from=frontend-builder /app/frontend/public ./frontend/public
 
 # Create startup script
+# RENDER sets the PORT environment variable. Next.js should listen on that.
+# However, we are running two services.
+# Render expects the web service to listen on $PORT (usually 10000).
+# We will make Next.js (frontend) listen on $PORT (or 10000 if not set).
+# The backend will listen on 8000 internally.
 RUN echo '#!/bin/bash\n\
-# Start Backend in background\n\
+# Start Backend in background on internal port 8000\n\
 cd /app/backend && uvicorn main:app --host 0.0.0.0 --port 8000 &\n\
+\n\
+# Determine the port for frontend (Render provides PORT env var)\n\
+PORT="${PORT:-10000}"\n\
+echo "Starting frontend on port $PORT"\n\
+\n\
 # Start Frontend (Standalone)\n\
-cd /app/frontend && node server.js\n\
+cd /app/frontend && PORT=$PORT node server.js\n\
 ' > /app/start.sh && chmod +x /app/start.sh
-
-# Expose ports
-EXPOSE 3000 8000
 
 # Run both
 CMD ["/app/start.sh"]
