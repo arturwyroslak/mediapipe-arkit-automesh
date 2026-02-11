@@ -42,7 +42,6 @@ export default function Home() {
       const formData = new FormData();
       formData.append("file", file);
 
-      // Use relative path /api/upload which is proxied to backend:8000/upload
       const uploadRes = await axios.post("/api/upload", formData);
       const { id } = uploadRes.data;
       setUploadId(id);
@@ -50,11 +49,9 @@ export default function Home() {
       setStatus("processing");
       const processRes = await axios.post(`/api/process/${id}`);
       
-      // Backend returns full path or relative? Backend usually returns relative or absolute without host
-      // If backend returns /download/filename, we need to map it to /api/download/filename
-      
-      const rawUrl = processRes.data.download_url; // e.g., /download/processed_xyz.glb
-      setDownloadUrl(`/api${rawUrl}`); // Proxy via /api/download...
+      const rawUrl = processRes.data.download_url; 
+      // Add timestamp to force fresh load in 3D viewer
+      setDownloadUrl(`/api${rawUrl}?t=${Date.now()}`);
       setStatus("completed");
       setShowEditor(true);
 
