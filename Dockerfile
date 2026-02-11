@@ -2,8 +2,9 @@
 FROM node:18-slim AS frontend-builder
 WORKDIR /app/frontend
 
-# Copy package files first for caching
+# Copy package files
 COPY frontend/package*.json ./
+COPY frontend/tsconfig.json ./ 
 RUN npm install
 
 # Copy source code
@@ -19,7 +20,6 @@ RUN npm run build
 FROM python:3.10-slim
 
 # Install system dependencies
-# libgl1 is sufficient for headless blender usually
 RUN apt-get update && apt-get install -y \
     wget \
     xz-utils \
@@ -32,7 +32,7 @@ RUN apt-get update && apt-get install -y \
     gnupg \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Node.js 18 (required to run the Next.js standalone server)
+# Install Node.js 18
 RUN mkdir -p /etc/apt/keyrings && \
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
     echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_18.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \
@@ -54,18 +54,15 @@ WORKDIR /app
 
 # Setup Backend
 COPY backend/requirements.txt ./backend/
-# Check if requirements.txt exists and install, otherwise skip or fail gracefully
 RUN pip install --no-cache-dir -r backend/requirements.txt
 COPY backend/ ./backend/
 
 # Setup Frontend (Copy Standalone Output)
-# The standalone build puts everything needed in .next/standalone
 COPY --from=frontend-builder /app/frontend/.next/standalone ./frontend
 COPY --from=frontend-builder /app/frontend/.next/static ./frontend/.next/static
 COPY --from=frontend-builder /app/frontend/public ./frontend/public
 
 # Create startup script
-# We run the standalone node server which is optimized for production
 RUN echo '#!/bin/bash\n\
 # Start Backend in background\n\
 cd /app/backend && uvicorn main:app --host 0.0.0.0 --port 8000 &\n\
