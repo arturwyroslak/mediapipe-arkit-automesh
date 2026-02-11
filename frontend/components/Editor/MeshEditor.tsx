@@ -1,11 +1,11 @@
 "use client";
 
 import React, { Suspense, useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { Canvas, useThree, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { useGLTF, Stage, OrbitControls, TransformControls, Html, useCursor } from "@react-three/drei";
 import * as THREE from "three";
 import { GLTFExporter } from "three-stdlib";
-import { Undo, Redo, RotateCcw, Save, FolderOpen, Folder, ChevronDown, ChevronRight, Box } from "lucide-react";
+import { Undo, Redo, RotateCcw, Save, FolderOpen, ChevronDown, ChevronRight, Box, Edit3, Eye, Sliders, AlertCircle } from "lucide-react";
 
 // --- Constants & Grouping ---
 const SHAPE_CATEGORIES: Record<string, string[]> = {
@@ -43,42 +43,43 @@ interface HistoryState {
 // --- Helper Components ---
 
 function CategoryGroup({ title, shapes, influences, activeShape, onSelect, onChange }: any) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false); // Default closed for cleaner look
   
   if (shapes.length === 0) return null;
 
   return (
-    <div className="mb-2">
+    <div className="mb-2 border border-gray-800 rounded-lg overflow-hidden bg-gray-900/30">
       <div 
-        className="flex items-center gap-2 p-2 bg-gray-900/80 hover:bg-gray-800 cursor-pointer rounded select-none"
+        className="flex items-center gap-3 p-3 hover:bg-gray-800/50 cursor-pointer select-none transition-colors"
         onClick={() => setIsOpen(!isOpen)}
       >
-        {isOpen ? <ChevronDown className="w-3 h-3 text-gray-400" /> : <ChevronRight className="w-3 h-3 text-gray-400" />}
-        <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">{title}</span>
-        <span className="text-[10px] text-gray-600 ml-auto">{shapes.length}</span>
+        {isOpen ? <ChevronDown className="w-4 h-4 text-blue-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
+        <span className="text-sm font-semibold text-gray-200">{title}</span>
+        <span className="text-[10px] bg-gray-800 px-2 py-0.5 rounded-full text-gray-400 ml-auto">{shapes.length}</span>
       </div>
       
       {isOpen && (
-        <div className="pl-2 mt-1 space-y-1">
+        <div className="bg-black/20 p-2 space-y-1">
           {shapes.map((name: string) => (
             <div 
               key={name}
-              className={`p-2 rounded text-xs flex items-center justify-between group transition-all ${
+              className={`p-2 rounded-md text-xs flex items-center gap-3 transition-all ${
                 activeShape === name 
-                  ? "bg-blue-600/20 border border-blue-500/50" 
+                  ? "bg-blue-900/30 border border-blue-500/30" 
                   : "hover:bg-gray-800 border border-transparent"
               }`}
             >
               <div 
-                className="flex-1 cursor-pointer truncate mr-2"
+                className="flex-1 cursor-pointer truncate"
                 onClick={() => onSelect(name)}
                 title={name}
               >
-                <span className={activeShape === name ? "text-blue-400 font-bold" : "text-gray-400 group-hover:text-gray-200"}>
+                <span className={`block truncate ${activeShape === name ? "text-blue-400 font-bold" : "text-gray-400"}`}>
                   {name}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
+              
+              <div className="flex items-center gap-2 group/slider">
                 <input
                   type="range"
                   min="0"
@@ -86,10 +87,10 @@ function CategoryGroup({ title, shapes, influences, activeShape, onSelect, onCha
                   step="0.01"
                   value={influences[name] || 0}
                   onChange={(e) => onChange(name, parseFloat(e.target.value))}
-                  className="w-16 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                  className="w-20 h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:accent-blue-400 transition-all"
                 />
-                <span className="w-6 text-right text-gray-500 font-mono text-[10px]">
-                  {(influences[name] || 0).toFixed(1)}
+                <span className="w-8 text-right text-gray-500 font-mono text-[10px] group-hover/slider:text-white transition-colors">
+                  {(influences[name] || 0).toFixed(2)}
                 </span>
               </div>
             </div>
@@ -194,20 +195,11 @@ function InteractiveModel({
       
       setSelectedVertex(closest);
       
-      // Calculate where the dummy should be visually
-      // Base Pos + Current Total Morph Offset
-      // Ideally we want the dummy to be at the VISUAL position of the vertex
-      
-      // For simplicity in this editor, we position dummy at Base Pos + Active Morph Delta (if any)
-      // This is an approximation. A robust editor would calculate full morph stack.
-      
       const vPos = new THREE.Vector3().fromBufferAttribute(posAttribute, closest);
       
-      // If we have an active shape, add its current delta to start pos
       if (activeShapeIndex !== null) {
          const morphAttr = meshRef.current.geometry.morphAttributes.position[activeShapeIndex];
          const currentDelta = new THREE.Vector3().fromBufferAttribute(morphAttr, closest);
-         // We visualize the vertex at "Base + Delta" (as if influence is 1)
          vPos.add(currentDelta);
       }
 
@@ -242,8 +234,6 @@ function InteractiveModel({
     const geometry = mesh.geometry;
     const morphAttr = geometry.morphAttributes.position[activeShapeIndex];
     
-    // Calculate Delta: Visual Pos - Base Pos
-    // We assume the user is manipulating the vertex as it looks when Influence = 1.0
     const visualPos = dummyRef.current.position.clone();
     const basePos = new THREE.Vector3().fromBufferAttribute(geometry.attributes.position, selectedVertex);
     
@@ -275,7 +265,8 @@ function InteractiveModel({
             onChange={onTransformChange}
             onMouseDown={handleDragStart}
             onMouseUp={handleDragEnd}
-            size={0.5}
+            size={0.4}
+            space="local"
           />
         </>
       )}
@@ -291,6 +282,7 @@ export default function MeshEditor({ url }: MeshEditorProps) {
   const [showWireframe, setShowWireframe] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [activeShape, setActiveShape] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   
   // History Stack
   const [history, setHistory] = useState<HistoryState[]>([]);
@@ -301,14 +293,11 @@ export default function MeshEditor({ url }: MeshEditorProps) {
   // Group shapes logic
   const groupedShapes = useMemo(() => {
     const groups: Record<string, string[]> = { ...SHAPE_CATEGORIES };
-    // Find shapes not in categories
     const allCategorized = new Set(Object.values(SHAPE_CATEGORIES).flat());
     const others = shapeNames.filter(n => !allCategorized.has(n));
     if (others.length > 0) {
-      // Merge with existing "Other" or create
       groups["Other"] = [...(groups["Other"] || []), ...others];
     }
-    // Filter out categories that have no matching shapes in this model
     const filtered: Record<string, string[]> = {};
     Object.entries(groups).forEach(([cat, list]) => {
       const present = list.filter(name => shapeNames.includes(name));
@@ -331,25 +320,22 @@ export default function MeshEditor({ url }: MeshEditorProps) {
        newInfl[name] = mesh.morphTargetInfluences[i] || 0;
     });
     setInfluences(newInfl);
+    setLoading(false);
   }, []);
 
   const handleVertexChange = (vertexIndex: number, oldDelta: THREE.Vector3, newDelta: THREE.Vector3) => {
     if (!activeShape) return;
     setHistory(prev => [...prev, { shapeName: activeShape, vertexIndex, oldDelta, newDelta }]);
-    setRedoStack([]); // Clear redo on new action
+    setRedoStack([]); 
   };
 
   const handleUndo = () => {
     if (history.length === 0 || !meshRef.current) return;
     const action = history[history.length - 1];
-    
-    // Revert
     const shapeIndex = meshRef.current.morphTargetDictionary![action.shapeName];
     const morphAttr = meshRef.current.geometry.morphAttributes.position[shapeIndex];
     morphAttr.setXYZ(action.vertexIndex, action.oldDelta.x, action.oldDelta.y, action.oldDelta.z);
     morphAttr.needsUpdate = true;
-    
-    // Update stacks
     setRedoStack(prev => [...prev, action]);
     setHistory(prev => prev.slice(0, -1));
   };
@@ -357,14 +343,10 @@ export default function MeshEditor({ url }: MeshEditorProps) {
   const handleRedo = () => {
     if (redoStack.length === 0 || !meshRef.current) return;
     const action = redoStack[redoStack.length - 1];
-    
-    // Apply
     const shapeIndex = meshRef.current.morphTargetDictionary![action.shapeName];
     const morphAttr = meshRef.current.geometry.morphAttributes.position[shapeIndex];
     morphAttr.setXYZ(action.vertexIndex, action.newDelta.x, action.newDelta.y, action.newDelta.z);
     morphAttr.needsUpdate = true;
-    
-    // Update stacks
     setHistory(prev => [...prev, action]);
     setRedoStack(prev => prev.slice(0, -1));
   };
@@ -391,12 +373,13 @@ export default function MeshEditor({ url }: MeshEditorProps) {
   };
 
   return (
-    <div className="flex w-full h-[700px] bg-black border border-gray-800 rounded-xl overflow-hidden shadow-2xl select-none">
+    <div className="flex w-full h-[80vh] bg-black border border-gray-800 rounded-xl overflow-hidden shadow-2xl select-none relative group">
+      
       {/* 3D Viewport */}
-      <div className="flex-grow relative bg-gradient-to-b from-gray-900 to-black">
-        <Canvas shadows dpr={[1, 2]} camera={{ fov: 45, position: [0, 0, 0.6] }}>
-          <Suspense fallback={<Html center><div className="text-blue-500 animate-pulse">Loading Model...</div></Html>}>
-            <Stage environment="city" intensity={0.7} adjustCamera={1.2}>
+      <div className="flex-grow relative bg-gradient-to-b from-gray-900 via-gray-900 to-black">
+        <Canvas shadows dpr={[1, 2]} camera={{ fov: 40, position: [0, 0, 0.7] }}>
+          <Suspense fallback={null}>
+            <Stage environment="studio" intensity={0.5} adjustCamera={1.2}>
               <InteractiveModel 
                 url={url} 
                 influences={influences}
@@ -408,37 +391,44 @@ export default function MeshEditor({ url }: MeshEditorProps) {
               />
             </Stage>
           </Suspense>
-          <OrbitControls makeDefault minDistance={0.1} maxDistance={2} />
+          <OrbitControls makeDefault minDistance={0.1} maxDistance={2} enablePan={true} />
         </Canvas>
         
-        {/* Toolbar */}
-        <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none">
-           <div className="flex gap-2 pointer-events-auto">
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-50">
+             <div className="flex flex-col items-center gap-2">
+                <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                <span className="text-xs text-blue-400">Loading Geometry...</span>
+             </div>
+          </div>
+        )}
+
+        {/* Top Toolbar */}
+        <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none z-10">
+           <div className="flex gap-2 pointer-events-auto bg-black/40 backdrop-blur-md p-1.5 rounded-xl border border-white/10">
              <button 
                onClick={() => setShowWireframe(!showWireframe)}
-               className={`p-2 rounded-lg backdrop-blur-md border transition-all ${showWireframe ? "bg-blue-600/80 border-blue-500 text-white" : "bg-black/50 border-gray-700 text-gray-400 hover:text-white"}`}
+               className={`p-2 rounded-lg transition-all ${showWireframe ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20" : "text-gray-400 hover:text-white hover:bg-white/10"}`}
                title="Toggle Wireframe"
              >
                <Box className="w-4 h-4" />
              </button>
-             
+             <div className="w-px h-6 bg-white/10 mx-1 my-auto" />
              <button 
                onClick={() => setEditMode(!editMode)}
-               className={`p-2 rounded-lg backdrop-blur-md border transition-all ${editMode ? "bg-red-600/80 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]" : "bg-black/50 border-gray-700 text-gray-400 hover:text-white"}`}
-               title="Toggle Vertex Edit Mode"
+               className={`px-3 py-2 rounded-lg transition-all flex items-center gap-2 ${editMode ? "bg-red-600 text-white shadow-lg shadow-red-500/20 animate-pulse-slow" : "text-gray-400 hover:text-white hover:bg-white/10"}`}
+               title="Toggle Vertex Sculpting Mode"
              >
-               <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${editMode ? "bg-white animate-pulse" : "bg-gray-500"}`} />
-                  <span className="text-xs font-bold">{editMode ? "EDITING" : "VIEW"}</span>
-               </div>
+               <Edit3 className="w-4 h-4" />
+               <span className="text-xs font-bold tracking-wide">{editMode ? "SCULPTING" : "VIEW MODE"}</span>
              </button>
            </div>
 
-           <div className="flex gap-2 pointer-events-auto">
+           <div className="flex gap-2 pointer-events-auto bg-black/40 backdrop-blur-md p-1.5 rounded-xl border border-white/10">
              <button 
                onClick={handleUndo}
                disabled={history.length === 0}
-               className="p-2 rounded-lg bg-black/50 border border-gray-700 text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed backdrop-blur-md"
+               className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                title="Undo"
              >
                <Undo className="w-4 h-4" />
@@ -446,46 +436,53 @@ export default function MeshEditor({ url }: MeshEditorProps) {
              <button 
                onClick={handleRedo}
                disabled={redoStack.length === 0}
-               className="p-2 rounded-lg bg-black/50 border border-gray-700 text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed backdrop-blur-md"
+               className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                title="Redo"
              >
                <Redo className="w-4 h-4" />
              </button>
-             <div className="w-px h-8 bg-gray-700 mx-1"></div>
+             <div className="w-px h-6 bg-white/10 mx-1 my-auto" />
              <button 
                onClick={handleExport}
-               className="py-2 px-4 rounded-lg bg-green-600 hover:bg-green-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-green-900/20"
+               className="py-2 px-4 rounded-lg bg-green-600 hover:bg-green-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-green-900/20 transition-all active:scale-95"
              >
-               <Save className="w-3 h-3" /> EXPORT
+               <Save className="w-3 h-3" /> EXPORT GLB
              </button>
            </div>
         </div>
         
+        {/* On-screen Helper */}
         {editMode && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur border border-gray-800 p-4 rounded-xl text-xs text-gray-300 pointer-events-none min-w-[300px] text-center">
-            {activeShape ? (
-               <>
-                 Editing Shape: <span className="text-blue-400 font-bold text-sm block mt-1">{activeShape}</span>
-                 <p className="mt-2 text-gray-500">Click & Drag vertices to sculpt delta</p>
-               </>
-            ) : (
-               <span className="text-yellow-500 flex items-center justify-center gap-2">
-                 <AlertCircle className="w-4 h-4" /> Select a shape from the sidebar to start editing
-               </span>
-            )}
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 pointer-events-none">
+            <div className="bg-black/80 backdrop-blur-md border border-red-500/30 px-6 py-3 rounded-full text-center shadow-2xl">
+              {activeShape ? (
+                 <div className="flex flex-col items-center">
+                   <span className="text-[10px] text-red-400 uppercase tracking-widest font-bold mb-1">Active Shape</span>
+                   <span className="text-white font-bold text-sm flex items-center gap-2">
+                     {activeShape} <span className="text-gray-500 font-normal">({(influences[activeShape] || 0).toFixed(2)})</span>
+                   </span>
+                   <span className="text-[10px] text-gray-400 mt-1">Click vertex to edit • Drag gizmo to move</span>
+                 </div>
+              ) : (
+                 <div className="flex items-center gap-3 text-yellow-500">
+                   <AlertCircle className="w-5 h-5" />
+                   <span className="text-xs font-bold">Select a blendshape from sidebar to start sculpting</span>
+                 </div>
+              )}
+            </div>
           </div>
         )}
       </div>
 
       {/* Sidebar Controls */}
-      <div className="w-80 bg-gray-950 border-l border-gray-800 flex flex-col h-full">
-        <div className="p-4 border-b border-gray-800 bg-gray-900/50 flex items-center justify-between">
+      <div className="w-[320px] bg-black border-l border-gray-800 flex flex-col h-full shrink-0 z-20 shadow-2xl">
+        <div className="p-4 border-b border-gray-800 bg-gray-900/50 backdrop-blur flex items-center justify-between">
           <div>
             <h3 className="font-bold text-sm text-white flex items-center gap-2">
-              <FolderOpen className="w-4 h-4 text-blue-500" />
-              Blendshapes
+              <Sliders className="w-4 h-4 text-blue-500" />
+              Shape Editor
             </h3>
-            <p className="text-[10px] text-gray-500 mt-0.5">{shapeNames.length} keys found</p>
+            <p className="text-[10px] text-gray-500 mt-0.5">Adjust sliders to test expressions</p>
           </div>
           <button 
              onClick={() => setInfluences(prev => {
@@ -493,14 +490,14 @@ export default function MeshEditor({ url }: MeshEditorProps) {
                 Object.keys(prev).forEach(k => reset[k] = 0);
                 return reset;
              })}
-             className="text-[10px] text-gray-400 hover:text-white flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-800 transition-colors"
-             title="Reset all sliders"
+             className="text-[10px] text-gray-400 hover:text-white flex items-center gap-1 px-3 py-1.5 rounded-md hover:bg-white/10 transition-colors border border-transparent hover:border-gray-700"
+             title="Reset all sliders to zero"
           >
              <RotateCcw className="w-3 h-3" /> Reset
           </button>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-3 scrollbar-thin scrollbar-thumb-gray-800 scrollbar-track-transparent space-y-1">
+        <div className="flex-1 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-gray-800 scrollbar-track-transparent space-y-1">
           {Object.keys(groupedShapes).length > 0 ? (
             Object.entries(groupedShapes).map(([category, shapes]) => (
               <CategoryGroup 
@@ -511,8 +508,7 @@ export default function MeshEditor({ url }: MeshEditorProps) {
                 activeShape={activeShape}
                 onSelect={(name: string) => {
                    setActiveShape(name);
-                   if (editMode) {
-                     // Auto-set influence to 1 for easier visual editing
+                   if (editMode && (influences[name] || 0) < 0.5) {
                      setInfluences(prev => ({...prev, [name]: 1}));
                    }
                 }}
@@ -520,11 +516,15 @@ export default function MeshEditor({ url }: MeshEditorProps) {
               />
             ))
           ) : (
-             <div className="flex flex-col items-center justify-center h-40 text-gray-600 gap-2">
-                <Box className="w-8 h-8 opacity-20" />
-                <span className="text-xs">No blendshapes detected</span>
+             <div className="flex flex-col items-center justify-center h-40 text-gray-600 gap-3 opacity-50">
+                <Box className="w-10 h-10 stroke-1" />
+                <span className="text-xs">No shapes detected</span>
              </div>
           )}
+        </div>
+        
+        <div className="p-3 border-t border-gray-800 bg-gray-900/30 text-[10px] text-gray-500 text-center">
+           {shapeNames.length} Blendshapes • {activeShape ? "1 Active" : "None Selected"}
         </div>
       </div>
     </div>
