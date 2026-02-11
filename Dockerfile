@@ -13,17 +13,19 @@ RUN npm run build
 FROM python:3.10-slim
 
 # Install system dependencies including Node.js and Blender deps
+# libgl1-mesa-glx is replaced by libgl1 in newer Debian
+# libgconf-2-4 is deprecated and often not needed for headless blender or has alternatives
 RUN apt-get update && apt-get install -y \
     wget \
     xz-utils \
     libxi6 \
-    libgconf-2-4 \
     libfontconfig1 \
     libxrender1 \
-    libgl1-mesa-glx \
+    libgl1 \
     libgl1-mesa-dev \
     libsm6 \
     libxext6 \
+    libxfixes3 \
     curl \
     gnupg \
     && rm -rf /var/lib/apt/lists/*
@@ -60,7 +62,6 @@ COPY --from=frontend-builder /app/frontend/node_modules ./frontend/node_modules
 COPY --from=frontend-builder /app/frontend/package.json ./frontend/package.json
 # Copy config files if needed
 COPY --from=frontend-builder /app/frontend/next.config.js ./frontend/next.config.js 
-# Note: next.config.js might not exist if using default, checking repo structure would be safer but assuming standard nextjs
 
 # Create startup script
 RUN echo '#!/bin/bash\n\
