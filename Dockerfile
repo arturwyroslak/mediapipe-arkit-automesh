@@ -20,12 +20,13 @@ RUN npm run build
 FROM python:3.10-slim
 
 # Install system dependencies
-# Added libxfixes3, libxkbcommon0, libxcursor1, libxinerama1, libxi6 which are common Blender requirements
+# Comprehensive list for Blender 3.6+ headless
 RUN apt-get update && apt-get install -y \
     wget \
     xz-utils \
+    curl \
+    gnupg \
     libxi6 \
-    libfontconfig1 \
     libxrender1 \
     libgl1 \
     libsm6 \
@@ -34,8 +35,16 @@ RUN apt-get update && apt-get install -y \
     libxkbcommon0 \
     libxcursor1 \
     libxinerama1 \
-    curl \
-    gnupg \
+    libxrandr2 \
+    libxxf86vm1 \
+    libwayland-client0 \
+    libwayland-cursor0 \
+    libwayland-egl1 \
+    libx11-6 \
+    libx11-xcb1 \
+    libxcb1 \
+    libxdmcp6 \
+    libxau6 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Node.js 18
