@@ -19,6 +19,7 @@
     "axios": "^1.6.7",
     "react-dropzone": "^14.2.3",
     "three": "^0.161.0",
+    "three-stdlib": "^2.29.0",
     "@types/three": "^0.161.0",
     "@react-three/fiber": "^8.15.16",
     "@react-three/drei": "^9.99.0"
