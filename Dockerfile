@@ -20,6 +20,7 @@ RUN npm run build
 FROM python:3.10-slim
 
 # Install system dependencies
+# Added libxfixes3, libxkbcommon0, libxcursor1, libxinerama1, libxi6 which are common Blender requirements
 RUN apt-get update && apt-get install -y \
     wget \
     xz-utils \
@@ -28,6 +29,11 @@ RUN apt-get update && apt-get install -y \
     libxrender1 \
     libgl1 \
     libsm6 \
+    libxext6 \
+    libxfixes3 \
+    libxkbcommon0 \
+    libxcursor1 \
+    libxinerama1 \
     curl \
     gnupg \
     && rm -rf /var/lib/apt/lists/*
