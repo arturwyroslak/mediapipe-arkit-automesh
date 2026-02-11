@@ -1,5 +1,5 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import shutil
 import os
@@ -19,10 +19,14 @@ app.add_middleware(
 
 UPLOAD_DIR = "uploads"
 PROCESSED_DIR = "processed"
-BLENDER_PATH = os.getenv("BLENDER_PATH", "blender")  # Assumes blender is in PATH or set via ENV
+BLENDER_PATH = os.getenv("BLENDER_PATH", "blender")
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(PROCESSED_DIR, exist_ok=True)
+
+@app.get("/")
+async def health_check():
+    return {"status": "ok", "service": "backend"}
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
@@ -40,7 +44,6 @@ async def upload_file(file: UploadFile = File(...)):
 
 @app.post("/process/{file_id}")
 async def process_file(file_id: str):
-    # Find the file with this ID
     files = [f for f in os.listdir(UPLOAD_DIR) if f.startswith(file_id)]
     if not files:
         raise HTTPException(status_code=404, detail="File not found")
@@ -50,16 +53,14 @@ async def process_file(file_id: str):
     output_filename = f"processed_{input_filename}"
     output_path = os.path.join(PROCESSED_DIR, output_filename)
     
-    # Run Blender script
     try:
-        # NOTE: Ensure blender_script.py is in the same directory or properly referenced
         script_path = os.path.join(os.path.dirname(__file__), "blender_script.py")
         
         cmd = [
             BLENDER_PATH,
-            "-b", # Background mode
+            "-b",
             "-P", script_path,
-            "--", # Arguments for the script
+            "--",
             input_path,
             output_path
         ]
