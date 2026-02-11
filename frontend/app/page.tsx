@@ -42,18 +42,24 @@ export default function Home() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const uploadRes = await axios.post("http://localhost:8000/upload", formData);
+      // Use relative path /api/upload which is proxied to backend:8000/upload
+      const uploadRes = await axios.post("/api/upload", formData);
       const { id } = uploadRes.data;
       setUploadId(id);
 
       setStatus("processing");
-      const processRes = await axios.post(`http://localhost:8000/process/${id}`);
+      const processRes = await axios.post(`/api/process/${id}`);
       
-      setDownloadUrl(`http://localhost:8000${processRes.data.download_url}`);
+      // Backend returns full path or relative? Backend usually returns relative or absolute without host
+      // If backend returns /download/filename, we need to map it to /api/download/filename
+      
+      const rawUrl = processRes.data.download_url; // e.g., /download/processed_xyz.glb
+      setDownloadUrl(`/api${rawUrl}`); // Proxy via /api/download...
       setStatus("completed");
-      setShowEditor(true); // Auto-open editor on completion
+      setShowEditor(true);
 
     } catch (err: any) {
+      console.error(err);
       setStatus("error");
       setErrorMessage(err.response?.data?.detail || err.message || "An unexpected error occurred");
     }
