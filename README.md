@@ -5,53 +5,50 @@ This application provides a web interface to automatically add ARKit-compatible 
 ## Features
 - **Drag-and-Drop Interface**: Easily upload your `.glb` face models.
 - **Automated Processing**: A Blender backend script analyzes the mesh and injects 52 ARKit blendshapes.
-  - *Note*: Currently adds empty shape keys with correct naming conventions. This prepares the mesh for rigging or transfer tools.
-- **Dockerized**: Run the entire stack with a single command.
+- **3D Preview & Editor**: Interactive editor to visualize and fine-tune blendshapes in real-time.
+- **Unified Docker Image**: Run both frontend and backend in a single container.
 
 ## Tech Stack
-- **Frontend**: Next.js 14, Tailwind CSS, Lucide React
+- **Frontend**: Next.js 14, Tailwind CSS, Lucide React, React Three Fiber
 - **Backend**: FastAPI (Python), Blender 3.6+
-- **Infrastructure**: Docker, Docker Compose
+- **Infrastructure**: Docker
 
 ## Getting Started
 
-### Prerequisites
-- Docker & Docker Compose
+### Option 1: Docker Compose (Development)
+This method runs frontend and backend as separate services, ideal for development.
 
-### Running the Application
+```bash
+make run
+# OR
+docker-compose up
+```
+- Frontend: [http://localhost:3000](http://localhost:3000)
+- Backend API: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-1. Clone the repository:
+### Option 2: Single Container (Production / Simplified)
+This method builds a single image containing both the Next.js frontend and Python/Blender backend.
+
+1. **Build the image**:
    ```bash
-   git clone https://github.com/arturwyroslak/mediapipe-arkit-automesh.git
-   cd mediapipe-arkit-automesh
+   docker build -t mediapipe-app .
    ```
 
-2. Start the services:
+2. **Run the container**:
    ```bash
-   docker-compose up --build
+   docker run -p 3000:3000 -p 8000:8000 mediapipe-app
    ```
 
-3. Open your browser:
-   - Frontend: [http://localhost:3000](http://localhost:3000)
-   - API Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+The application will be accessible at [http://localhost:3000](http://localhost:3000).
 
 ## How it Works
 1. User uploads a GLB file via the frontend.
 2. The file is sent to the FastAPI backend.
 3. FastAPI triggers a headless Blender instance.
-4. The Blender script (`backend/blender_script.py`):
-   - Imports the GLB.
-   - Checks for existing shape keys.
-   - Adds missing shape keys based on the standard 52 ARKit names (e.g., `eyeBlinkLeft`, `jawOpen`).
-   - Exports the modified mesh.
-5. User downloads the processed GLB.
+4. The Blender script (`backend/blender_script.py`) injects 52 ARKit blendshapes.
+5. User can preview and edit these shapes in the browser using the "Advanced Editor".
+6. Finally, the user exports the ready-to-rig model.
 
 ## Facial Rig Names
 The application follows the standard ARKit naming convention found in `backend/core/facial_rig_names.py`:
-- `eyeBlinkLeft`, `eyeLookDownLeft`, `eyeLookInLeft`, ...
-- `jawOpen`, `mouthSmileLeft`, `tongueOut`, ...
-
-## Future Improvements
-- Implement automatic weight painting transfer from a template mesh.
-- Integrate MediaPipe Python solution to detect landmarks on textures for better alignment.
-- Add a 3D viewer in the frontend to preview blendshapes.
+- `eyeBlinkLeft`, `jawOpen`, `mouthSmileLeft`, etc.
